@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
+import QuizCard, { type QuizData, type QuizResult } from "./QuizCard";
 
 interface Message {
   id: string;
@@ -23,6 +24,7 @@ interface Message {
   content: string;
   agent?: string;
   intent?: string;
+  quizData?: QuizData;
   timestamp: number;
 }
 
@@ -169,12 +171,36 @@ export default function ChatInterface({ subject, gradeLevel }: ChatInterfaceProp
           throw new Error(data.error || "Server error");
         }
 
+        // If intent is quiz, generate structured quiz via /api/quiz (A2UI flow)
+        let quizData: QuizData | undefined;
+        if (data.intent === "quiz") {
+          try {
+            const quizRes = await fetch("/api/quiz", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                topic: data.updated_context?.current_topic || subject,
+                subject,
+                grade_level: gradeLevel,
+                mastery: sessionCtx.mastery_summary[data.updated_context?.current_topic || subject] ?? 0,
+              }),
+            });
+            if (quizRes.ok) {
+              const quizJson = await quizRes.json();
+              quizData = quizJson.quiz as QuizData;
+            }
+          } catch {
+            // Quiz generation failure is non-fatal — fall back to text response
+          }
+        }
+
         const assistantMsg: Message = {
           id: `a-${Date.now()}`,
           role: "assistant",
           content: data.response || "I had trouble generating a response. Please try again.",
           agent: data.agent,
           intent: data.intent,
+          quizData,
           timestamp: Date.now(),
         };
         setMessages((prev) => [...prev, assistantMsg]);
@@ -358,6 +384,28 @@ export default function ChatInterface({ subject, gradeLevel }: ChatInterfaceProp
                     msg.content
                   )}
                 </div>
+
+                {/* A2UI: render interactive QuizCard when agent returns quiz data */}
+                {msg.quizData && (
+                  <QuizCard
+                    quiz={msg.quizData}
+                    studentId={sessionCtx.student_id}
+                    topic={sessionCtx.current_topic || subject}
+                    priorMastery={
+                      sessionCtx.mastery_summary[sessionCtx.current_topic || subject] ?? 0
+                    }
+                    onResult={(result: QuizResult) => {
+                      // Update mastery in session context after quiz scored
+                      setSessionCtx((prev) => ({
+                        ...prev,
+                        mastery_summary: {
+                          ...prev.mastery_summary,
+                          [result.topic]: result.new_mastery,
+                        },
+                      }));
+                    }}
+                  />
+                )}
               </div>
 
               {msg.role === "user" && (

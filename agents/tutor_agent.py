@@ -1,82 +1,90 @@
 """
 TutorAgent — Explains concepts through Socratic dialogue.
 
+Day 2 upgrade: Now uses WikipediaMCPServer via MCPClient instead of
+direct HTTP calls. Demonstrates MCP consumption pattern (Discovery → Config → Connect).
+
 Skill: subject-tutor
-Tools: Wikipedia MCP (via HTTP)
+MCP tools used: search_wikipedia, get_article_summary
 """
 
 from __future__ import annotations
 
-import httpx
-
 from .base import AgentContext, BaseAgent
+from mcp_servers import WikipediaMCPServer, MCPClient
 
 TUTOR_SYSTEM_PROMPT = """
 You are a patient, encouraging AI tutor. Your teaching philosophy:
 never give direct answers — guide students to discover answers themselves.
 
 Rules:
-1. Start by acknowledging what the student said and checking prior knowledge.
-2. Explain using simple analogies appropriate for a grade {grade_level} student.
+1. Start by checking what the student already knows.
+2. Explain using simple analogies for a grade {grade_level} student studying {subject}.
 3. After every explanation, ask ONE focused follow-up question to confirm understanding.
 4. If the student is stuck after 2 tries, give a scaffolded hint (not the answer).
 5. Keep responses under 300 words.
-6. Use plain, warm language. Celebrate curiosity.
-7. Format with short paragraphs — never use bullet points in explanations.
+6. Use warm, plain language. Celebrate curiosity.
+7. Format with short paragraphs — no bullet points in explanations.
 
-Current subject: {subject}
 Current topic: {topic}
 """.strip()
 
 
 class TutorAgent(BaseAgent):
-    """Socratic tutor agent backed by Gemini + Wikipedia lookup."""
+    """
+    Socratic tutor agent.
 
-    WIKIPEDIA_API = "https://en.wikipedia.org/api/rest_v1/page/summary"
+    MCP Connection:
+      - Connects to WikipediaMCPServer on init (handshake: lists available tools)
+      - Calls search_wikipedia and get_article_summary during tutoring
+    """
 
-    async def _fetch_wikipedia_summary(self, topic: str) -> str | None:
-        """Lightweight Wikipedia lookup — simulates Wikipedia MCP tool call."""
+    def __init__(self, api_key: str):
+        super().__init__(api_key)
+        # MCP Discovery: connect to Wikipedia MCP server and list its tools
+        self._wiki_server = WikipediaMCPServer()
+        self._wiki_client = MCPClient(self._wiki_server)
+        available_tools = self._wiki_client.list_tools()
+        self._log(
+            "mcp_connected",
+            {
+                "server": self._wiki_server.name,
+                "tools": [t.name for t in available_tools],
+            },
+        )
+
+    async def _fetch_wiki_context(self, topic: str) -> str:
+        """Call Wikipedia MCP tools to get factual grounding for the explanation."""
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                # Wikipedia search
-                search_url = "https://en.wikipedia.org/w/api.php"
-                params = {
-                    "action": "query",
-                    "list": "search",
-                    "srsearch": topic,
-                    "format": "json",
-                    "srlimit": 1,
-                }
-                resp = await client.get(search_url, params=params)
-                data = resp.json()
-                results = data.get("query", {}).get("search", [])
-                if not results:
-                    return None
+            # MCP tool call 1: search for the topic
+            search_results = await self._wiki_client.call("search_wikipedia", query=topic, limit=2)
+            if not search_results:
+                return ""
 
-                title = results[0]["title"]
-                # Fetch summary
-                summary_resp = await client.get(f"{self.WIKIPEDIA_API}/{title.replace(' ', '_')}")
-                if summary_resp.status_code == 200:
-                    return summary_resp.json().get("extract", "")[:500]
-        except Exception:
-            pass
-        return None
+            best_title = search_results[0]["title"]
+
+            # MCP tool call 2: fetch article summary
+            summary = await self._wiki_client.call("get_article_summary", title=best_title)
+
+            self._log("mcp_tool_called", {"tool": "get_article_summary", "title": best_title})
+            return f"\n\nFACT-CHECK (Wikipedia — {best_title}):\n{summary}\nUse this to ensure accuracy. Do not copy it verbatim."
+
+        except Exception as e:
+            self._log("mcp_tool_error", {"error": str(e)})
+            return ""
 
     async def run(self, context: AgentContext, message: str) -> dict:
         self._log("tutor_start", {"topic": context.current_topic})
 
-        # Optionally enrich with Wikipedia context (simulates MCP tool call)
+        # Fetch Wikipedia context via MCP
         wiki_context = ""
         if context.current_topic:
-            summary = await self._fetch_wikipedia_summary(context.current_topic)
-            if summary:
-                wiki_context = f"\n\nFACT CHECK (Wikipedia):\n{summary}\nUse this to ensure accuracy."
-                self._log("wikipedia_lookup", {"topic": context.current_topic, "found": True})
+            wiki_context = await self._fetch_wiki_context(context.current_topic)
 
         system_prompt = TUTOR_SYSTEM_PROMPT.format(
             grade_level=context.grade_level,
             subject=context.subject,
-            topic=context.current_topic or "general",
+            topic=context.current_topic or context.subject,
         ) + wiki_context
 
         prompt = self._build_prompt(system_prompt, context, message)
@@ -90,6 +98,7 @@ class TutorAgent(BaseAgent):
                 "agent": "TutorAgent",
                 "skill": "subject-tutor",
                 "topic": context.current_topic,
+                "mcp_server": self._wiki_server.name,
                 "wikipedia_used": bool(wiki_context),
             },
         }
