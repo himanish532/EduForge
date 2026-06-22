@@ -8,5 +8,24 @@
   ],
   "env": {
     "GEMINI_API_KEY": "@gemini-api-key"
-  }
+  },
+  "functions": {
+    "app/api/chat/route.ts": { "maxDuration": 30 },
+    "app/api/lesson/route.ts": { "maxDuration": 60 },
+    "app/api/evaluate/route.ts": { "maxDuration": 120 },
+    "app/api/multimodal/route.ts": { "maxDuration": 30 },
+    "app/api/rag/route.ts": { "maxDuration": 10 },
+    "app/api/metrics/route.ts": { "maxDuration": 10 },
+    "app/api/health/route.ts": { "maxDuration": 10 },
+    "app/api/quiz/route.ts": { "maxDuration": 30 }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "X-EduForge-Spec-Version", "value": "1.0.0" },
+        { "key": "X-EduForge-Model", "value": "gemini-2.0-flash" }
+      ]
+    }
+  ]
 }

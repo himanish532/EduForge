@@ -1,6 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
+import { knowledgeBase } from "../../../rag/knowledge_base";
+import { specCheck } from "../../../spec_validator/validator";
+import { recordMetric } from "../../../lib/metrics";
 
 export const runtime = "nodejs";
+
+const _requestStart = new WeakMap<Request, number>();
+
+// ── RAG: keyword retrieval over curated knowledge base (Day 4) ──────────
+function ragRetrieve(
+  query: string,
+  subject: string,
+  gradeLevel: number,
+  topK = 2
+): Array<{ topic: string; text: string; source: string }> {
+  const q = query.toLowerCase();
+  const terms = q.split(/\s+/).filter((w) => w.length > 2);
+  if (terms.length === 0) return [];
+
+  const scored = knowledgeBase
+    .filter((c) => {
+      const subjectMatch = c.subject === subject.toLowerCase() || c.subject === "general";
+      const [lo, hi] = c.grade_range.split("-").map(Number);
+      const gradeMatch = gradeLevel >= lo && gradeLevel <= hi;
+      return subjectMatch && gradeMatch;
+    })
+    .map((c) => {
+      let score = 0;
+      const haystack = (c.text + " " + c.topic).toLowerCase();
+      for (const term of terms) {
+        if (c.topic.toLowerCase().includes(term)) score += 3;
+        const count = (haystack.match(new RegExp(term, "g")) ?? []).length;
+        score += Math.log(1 + count);
+      }
+      return { ...c, score };
+    })
+    .filter((r) => r.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK);
+
+  return scored;
+}
+
+function formatRAGContext(results: ReturnType<typeof ragRetrieve>): string {
+  if (results.length === 0) return "";
+  const lines = ["\n\n## Knowledge Base Context (RAG)\n"];
+  for (const r of results) {
+    lines.push(`**${r.topic}** (source: ${r.source})\n${r.text}\n`);
+  }
+  return lines.join("\n");
+}
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 
@@ -92,6 +141,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const requestStart = Date.now();
     const gradeLevel = parseInt(grade_level, 10) || 8;
     const intent = classifyIntent(message);
     const agentName = detectAgent(intent);
@@ -110,21 +160,32 @@ export async function POST(req: NextRequest) {
           history.map((m: { role: string; content: string }) => `${m.role.toUpperCase()}: ${m.content}`).join("\n")
         : "";
 
-    const fullPrompt = `${systemPrompt}${historyText}\n\nSTUDENT: ${message}\n\nTUTOR:`;
+    // Day 4: RAG — retrieve relevant knowledge chunks and inject into prompt
+    const ragResults = ragRetrieve(message, subject, gradeLevel, 2);
+    const ragContext = formatRAGContext(ragResults);
 
-    // Call Gemini API directly via REST
+    const fullPrompt = `${systemPrompt}${ragContext}${historyText}\n\nSTUDENT: ${message}\n\nTUTOR:`;
+
+    // Day 4: TutorAgent uses Search Grounding; other agents use plain Gemini
+    const useGrounding = intent === "explain";
+
+    const requestBody = useGrounding
+      ? {
+          contents: [{ parts: [{ text: fullPrompt }] }],
+          tools: [{ googleSearchRetrieval: {} }],
+          generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
+        }
+      : {
+          contents: [{ parts: [{ text: fullPrompt }] }],
+          generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
+        };
+
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: fullPrompt }] }],
-          generationConfig: {
-            maxOutputTokens: 800,
-            temperature: 0.7,
-          },
-        }),
+        body: JSON.stringify(requestBody),
       }
     );
 
@@ -141,8 +202,28 @@ export async function POST(req: NextRequest) {
       geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
       "I had trouble generating a response. Please try again.";
 
-    // Safety check every response
-    const { safe, response } = safetyCheck(rawResponse);
+    // Extract grounding metadata (Day 4)
+    const groundingMeta = geminiData.candidates?.[0]?.groundingMetadata;
+    const sources: Array<{ title: string; uri: string }> =
+      groundingMeta?.groundingChunks
+        ?.filter((c: { web?: { title?: string; uri?: string } }) => c.web)
+        .map((c: { web: { title?: string; uri?: string } }) => ({
+          title: c.web.title ?? "",
+          uri: c.web.uri ?? "",
+        })) ?? [];
+    const searchQueries: string[] = groundingMeta?.webSearchQueries ?? [];
+
+    // Safety check every response (Day 1 layer)
+    const { safe, response: safetyResponse } = safetyCheck(rawResponse);
+
+    // Day 5: Spec Validator — runtime contract enforcement against SPEC.md
+    const specResult = specCheck({
+      response: safetyResponse,
+      agent: agentName,
+      intent,
+      grade_level: gradeLevel,
+    });
+    const response = specResult.response;
 
     // Update context for client to persist
     const updatedHistory = [
@@ -151,21 +232,51 @@ export async function POST(req: NextRequest) {
       { role: "assistant", content: response },
     ].slice(-10);
 
+    // Day 5: record telemetry before returning
+    recordMetric({
+      timestamp: Date.now(),
+      agent: agentName,
+      intent,
+      latency_ms: Date.now() - requestStart,
+      token_estimate: Math.ceil(response.length / 4),
+      safe,
+      grounded: useGrounding,
+      rag_chunks: ragResults.length,
+      spec_violations: specResult.spec_violations.length,
+      hitl_required: specResult.hitl_required,
+    });
+
     return NextResponse.json({
       response,
       agent: agentName,
       intent,
       safe,
+      // Day 4: grounding metadata for citation rendering in UI
+      grounding: useGrounding
+        ? { sources, search_queries: searchQueries, grounded: true }
+        : null,
+      // Day 4: RAG metadata
+      rag: ragResults.length > 0
+        ? { chunks_used: ragResults.map((r) => r.topic), count: ragResults.length }
+        : null,
       updated_context: {
         recent_history: updatedHistory,
         current_topic: extractTopic(message, topic),
         session_summary: session_summary,
         mastery_summary: body.mastery_summary || {},
       },
+      // Day 5: spec validation metadata
+      spec: {
+        version: specResult.spec_version,
+        violations: specResult.spec_violations,
+        hitl_required: specResult.hitl_required,
+      },
       audit: {
         routing_confidence: 0.9,
         topic,
         agent: agentName,
+        grounded: useGrounding,
+        safe,
       },
     });
   } catch (err) {

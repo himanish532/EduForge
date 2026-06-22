@@ -1,0 +1,58 @@
+{
+  "math": {
+    "topics": [
+      {"id": "arithmetic", "label": "Arithmetic", "prerequisites": [], "grade_start": 1},
+      {"id": "fractions", "label": "Fractions & Decimals", "prerequisites": ["arithmetic"], "grade_start": 3},
+      {"id": "algebra_basics", "label": "Algebra Basics", "prerequisites": ["fractions"], "grade_start": 6},
+      {"id": "linear_equations", "label": "Linear Equations", "prerequisites": ["algebra_basics"], "grade_start": 7},
+      {"id": "quadratic_equations", "label": "Quadratic Equations", "prerequisites": ["linear_equations"], "grade_start": 8},
+      {"id": "functions", "label": "Functions", "prerequisites": ["linear_equations"], "grade_start": 8},
+      {"id": "geometry", "label": "Geometry", "prerequisites": ["arithmetic"], "grade_start": 7},
+      {"id": "trigonometry", "label": "Trigonometry", "prerequisites": ["geometry", "functions"], "grade_start": 9},
+      {"id": "calculus", "label": "Calculus", "prerequisites": ["trigonometry", "functions"], "grade_start": 11}
+    ]
+  },
+  "science": {
+    "topics": [
+      {"id": "basic_science", "label": "Basic Science", "prerequisites": [], "grade_start": 1},
+      {"id": "biology", "label": "Biology & Life Science", "prerequisites": ["basic_science"], "grade_start": 5},
+      {"id": "cell_biology", "label": "Cell Biology", "prerequisites": ["biology"], "grade_start": 6},
+      {"id": "chemistry", "label": "Chemistry", "prerequisites": ["basic_science"], "grade_start": 8},
+      {"id": "physics", "label": "Physics", "prerequisites": ["chemistry"], "grade_start": 9},
+      {"id": "advanced_biology", "label": "Genetics & Evolution", "prerequisites": ["cell_biology"], "grade_start": 10}
+    ]
+  },
+  "coding": {
+    "topics": [
+      {"id": "scratch", "label": "Block Programming", "prerequisites": [], "grade_start": 3},
+      {"id": "python_basics", "label": "Python Basics", "prerequisites": ["scratch"], "grade_start": 6},
+      {"id": "control_flow", "label": "Control Flow", "prerequisites": ["python_basics"], "grade_start": 7},
+      {"id": "functions", "label": "Functions & Scope", "prerequisites": ["control_flow"], "grade_start": 7},
+      {"id": "data_structures", "label": "Data Structures", "prerequisites": ["functions"], "grade_start": 8},
+      {"id": "algorithms", "label": "Algorithms & Complexity", "prerequisites": ["data_structures"], "grade_start": 9},
+      {"id": "recursion", "label": "Recursion", "prerequisites": ["functions"], "grade_start": 9},
+      {"id": "oop", "label": "Object-Oriented Programming", "prerequisites": ["data_structures"], "grade_start": 10}
+    ]
+  },
+  "history": {
+    "topics": [
+      {"id": "community_history", "label": "Community & Family History", "prerequisites": [], "grade_start": 1},
+      {"id": "ancient_civilizations", "label": "Ancient Civilizations", "prerequisites": ["community_history"], "grade_start": 4},
+      {"id": "medieval_history", "label": "Medieval Period", "prerequisites": ["ancient_civilizations"], "grade_start": 6},
+      {"id": "early_modern", "label": "Early Modern Period", "prerequisites": ["medieval_history"], "grade_start": 7},
+      {"id": "industrial_revolution", "label": "Industrial Revolution", "prerequisites": ["early_modern"], "grade_start": 8},
+      {"id": "world_wars", "label": "World Wars", "prerequisites": ["industrial_revolution"], "grade_start": 9},
+      {"id": "contemporary", "label": "Contemporary History", "prerequisites": ["world_wars"], "grade_start": 10}
+    ]
+  },
+  "english": {
+    "topics": [
+      {"id": "reading_basics", "label": "Reading & Phonics", "prerequisites": [], "grade_start": 1},
+      {"id": "grammar", "label": "Grammar & Punctuation", "prerequisites": ["reading_basics"], "grade_start": 3},
+      {"id": "paragraph_writing", "label": "Paragraph Writing", "prerequisites": ["grammar"], "grade_start": 4},
+      {"id": "essay_writing", "label": "Essay Writing", "prerequisites": ["paragraph_writing"], "grade_start": 6},
+      {"id": "literary_analysis", "label": "Literary Analysis", "prerequisites": ["essay_writing"], "grade_start": 8},
+      {"id": "rhetoric", "label": "Rhetoric & Argumentation", "prerequisites": ["literary_analysis"], "grade_start": 10}
+    ]
+  }
+}

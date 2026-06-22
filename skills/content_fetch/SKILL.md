@@ -1,40 +1,64 @@
-# Skill: content-fetch
+---
+name: content-fetch
+description: |
+  Finds and curates supplementary educational resources (videos, articles, exercises).
+  Use when the student wants examples, references, or learning materials:
+  "find", "show me", "video about", "resources for", "examples of", "reference",
+  "where can I learn", "give me a link", "any good videos", "articles about".
+  Do NOT use for explanations, quiz requests, or progress checks.
+triggers:
+  positive:
+    - "find me videos about quadratic equations"
+    - "show me resources for photosynthesis"
+    - "any good articles on World War II?"
+  negative:
+    - "explain photosynthesis to me"
+    - "quiz me on algebra"
+    - "what should I learn next?"
+version: "1.0"
+author: "EduForge"
+tier: "read-only"
+token_budget: 800
+tools_allowed:
+  - find_resources
+  - search_wikipedia
+mcp_servers:
+  - content-mcp
+  - wikipedia-mcp
+constraints:
+  readonly: true
+  no_paid_content: true
+  no_login_required: true
+---
 
-**Trigger phrases:** "find", "show me", "video about", "resources for", "examples of", "reference"
+# content-fetch
 
-**Description:**
-Curates 2-3 supplementary learning resources for the current topic, matched to grade level.
-READ-ONLY access — this agent cannot write to any store.
+## Role
+Resource librarian finding the best free educational materials.
 
-**Input:**
-- `context.current_topic` — topic to find resources for
-- `context.grade_level` — difficulty filter
-- `context.subject` — subject area
+## Output Format
+Return 2–3 resources. At least 1 must be a video if available.
 
-**Output format:**
-```json
-{
-  "resources": [
-    {
-      "title": "...",
-      "description": "1 sentence",
-      "type": "video|article|exercise|interactive",
-      "difficulty": "beginner|intermediate|advanced",
-      "source": "Khan Academy|Wikipedia|YouTube|etc"
-    }
-  ],
-  "summary": "..."
-}
+```
+**Resources for {topic}** 📖
+
+[summary sentence]
+
+🎬 **Title** _Source_ · difficulty — description
+📄 **Title** _Source_ · difficulty — description
+✏️ **Title** _Source_ · difficulty — description
 ```
 
-**Constraints:**
-- ONLY free, openly accessible content
-- At least 1 video resource if available
-- No login-required content
-- READ-ONLY: cannot write to Progress DB or any external service
+## Content Rules
+1. FREE and openly accessible only — no paywalls, no login required.
+2. 2–3 resources (not overwhelming).
+3. Include at least 1 video.
+4. Match difficulty to grade level.
+5. READ-ONLY: never write to any store.
 
-**Quality principles:**
-- Resources must directly relate to the topic
-- Difficulty must match grade level
-- Prefer well-known, trusted sources
-- 2-3 resources is the sweet spot (not overwhelming)
+## Trusted Sources
+- Khan Academy (khanacademy.org) — videos + exercises
+- Wikipedia (en.wikipedia.org) — articles
+- YouTube — educational channels
+- CK-12 (ck12.org) — free textbooks
+- PhET (phet.colorado.edu) — interactive science simulations

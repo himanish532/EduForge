@@ -8,15 +8,22 @@ import {
   BookOpen,
   Brain,
   ChevronRight,
+  Image,
   Loader2,
   Send,
   Shield,
   Sparkles,
   User,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
 import QuizCard, { type QuizData, type QuizResult } from "./QuizCard";
+
+interface GroundingSource {
+  title: string;
+  uri: string;
+}
 
 interface Message {
   id: string;
@@ -25,6 +32,9 @@ interface Message {
   agent?: string;
   intent?: string;
   quizData?: QuizData;
+  // Day 4: Search Grounding metadata
+  sources?: GroundingSource[];
+  searchQueries?: string[];
   timestamp: number;
 }
 
@@ -108,6 +118,9 @@ export default function ChatInterface({ subject, gradeLevel }: ChatInterfaceProp
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  // Day 4: image upload state
+  const [pendingImage, setPendingImage] = useState<{ base64: string; mime: string; preview: string } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [sessionCtx, setSessionCtx] = useState<SessionContext>({
     student_id: generateStudentId(),
     session_summary: "",
@@ -135,9 +148,87 @@ export default function ChatInterface({ subject, gradeLevel }: ChatInterfaceProp
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  // Day 4: handle image file selection → convert to base64
+  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      // Strip the data:image/...;base64, prefix
+      const base64 = dataUrl.split(",")[1];
+      setPendingImage({ base64, mime: file.type, preview: dataUrl });
+    };
+    reader.readAsDataURL(file);
+    // Reset input so the same file can be re-selected
+    e.target.value = "";
+  }, []);
+
+  // Day 4: send image + question to /api/multimodal
+  const sendImageMessage = useCallback(
+    async (question: string, image: { base64: string; mime: string; preview: string }) => {
+      if (loading) return;
+      setLoading(true);
+      setPendingImage(null);
+
+      const userMsg: Message = {
+        id: `u-img-${Date.now()}`,
+        role: "user",
+        content: question.trim() || "What is this?",
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      setInput("");
+
+      try {
+        const res = await fetch("/api/multimodal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image_base64: image.base64,
+            mime_type: image.mime,
+            question: question.trim() || "What is shown in this image? Help me understand it.",
+            subject,
+            grade_level: gradeLevel,
+          }),
+        });
+        const data = await res.json();
+        const assistantMsg: Message = {
+          id: `a-img-${Date.now()}`,
+          role: "assistant",
+          content: data.response || "I had trouble analyzing that image.",
+          agent: "VisionTutorAgent",
+          intent: "explain",
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `err-img-${Date.now()}`,
+            role: "assistant",
+            content: "⚠️ Image analysis failed. Please try again.",
+            agent: "System",
+            timestamp: Date.now(),
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loading, subject, gradeLevel]
+  );
+
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!text.trim() || loading) return;
+      if (loading) return;
+      // If an image is pending, send as multimodal request
+      if (pendingImage) {
+        await sendImageMessage(text, pendingImage);
+        return;
+      }
+      if (!text.trim()) return;
 
       const userMsg: Message = {
         id: `u-${Date.now()}`,
@@ -201,6 +292,8 @@ export default function ChatInterface({ subject, gradeLevel }: ChatInterfaceProp
           agent: data.agent,
           intent: data.intent,
           quizData,
+          sources: data.grounding?.sources ?? [],
+          searchQueries: data.grounding?.search_queries ?? [],
           timestamp: Date.now(),
         };
         setMessages((prev) => [...prev, assistantMsg]);
@@ -385,6 +478,29 @@ export default function ChatInterface({ subject, gradeLevel }: ChatInterfaceProp
                   )}
                 </div>
 
+                {/* Day 4: Search Grounding citations */}
+                {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
+                  <div className="mt-2 px-1">
+                    <p className="text-xs text-slate-400 mb-1 flex items-center gap-1">
+                      <span>🔍</span> Grounded with Google Search
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {msg.sources.slice(0, 4).map((src, i) => (
+                        <a
+                          key={i}
+                          href={src.uri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-full hover:bg-blue-100 transition-colors truncate max-w-[180px]"
+                          title={src.title}
+                        >
+                          {src.title || src.uri}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* A2UI: render interactive QuizCard when agent returns quiz data */}
                 {msg.quizData && (
                   <QuizCard
@@ -451,13 +567,48 @@ export default function ChatInterface({ subject, gradeLevel }: ChatInterfaceProp
 
         {/* Input area */}
         <div className="border-t border-slate-200 bg-white p-4">
+          {/* Day 4: Image preview before sending */}
+          {pendingImage && (
+            <div className="max-w-4xl mx-auto mb-2 flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+              <img
+                src={pendingImage.preview}
+                alt="pending upload"
+                className="w-12 h-12 object-cover rounded border border-blue-300"
+              />
+              <span className="text-xs text-blue-700 flex-1">
+                Image ready · add a question or send as-is
+              </span>
+              <button
+                onClick={() => setPendingImage(null)}
+                className="text-blue-400 hover:text-blue-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           <div className="flex gap-2 max-w-4xl mx-auto">
+            {/* Day 4: image upload button */}
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+            <button
+              onClick={() => imageInputRef.current?.click()}
+              disabled={loading}
+              title="Upload image (math problem, diagram, etc.)"
+              className="w-12 h-12 rounded-xl border border-slate-200 text-slate-400 flex items-center justify-center hover:border-brand-300 hover:text-brand-500 disabled:opacity-40 transition-all flex-shrink-0"
+            >
+              <Image className="w-4 h-4" />
+            </button>
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={`Ask about ${SUBJECT_LABELS[subject]}...`}
+              placeholder={pendingImage ? "Ask about this image..." : `Ask about ${SUBJECT_LABELS[subject]}...`}
               rows={1}
               className="flex-1 resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-transparent bg-slate-50 placeholder:text-slate-400 max-h-32 overflow-y-auto"
               style={{ minHeight: "48px" }}
@@ -465,7 +616,7 @@ export default function ChatInterface({ subject, gradeLevel }: ChatInterfaceProp
             />
             <button
               onClick={() => sendMessage(input)}
-              disabled={!input.trim() || loading}
+              disabled={(!input.trim() && !pendingImage) || loading}
               className="w-12 h-12 rounded-xl bg-brand-600 text-white flex items-center justify-center hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex-shrink-0 shadow-sm"
             >
               {loading ? (

@@ -183,11 +183,19 @@ export default function HomePage() {
         <p>
           Built with Google ADK · Gemini 2.0 Flash · Next.js · Vercel ·{" "}
           <a
-            href="https://github.com"
+            href="https://github.com/himanish532/EduForge"
             className="text-brand-500 hover:underline"
             target="_blank"
           >
             View on GitHub
+          </a>
+          {" · "}
+          <a href="/admin" className="text-brand-500 hover:underline">
+            Observability
+          </a>
+          {" · "}
+          <a href="/progress" className="text-brand-500 hover:underline">
+            Progress
           </a>
         </p>
         <p className="mt-1">

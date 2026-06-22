@@ -1,5 +1,5 @@
 # EduForge — Specification Document
-**Version:** 1.0  
+**Version:** 1.0.0  
 **Author:** Himanish Kopalle  
 **Capstone Track:** Agents for Good  
 **Submission Deadline:** July 6, 2026
@@ -205,17 +205,50 @@ Environment variables required:
 
 | Day | Concept | Where Used |
 |-----|---------|-----------|
-| Day 1 | Agentic Engineering, Context Harness, AGENTS.md | Orchestrator, this SPEC.md |
+| Day 1 | Agentic Engineering, Context Harness, AGENTS.md | Orchestrator, `agents/base.py`, sliding window |
 | Day 1 | Conductor vs Orchestrator roles | Teacher human-in-the-loop gate |
-| Day 2 | MCP Servers | Wikipedia, Progress DB, Content MCP |
-| Day 2 | A2A Protocol | Assessment → Curriculum agent messaging |
-| Day 2 | A2UI | Generative quiz UI, progress dashboard |
-| Day 3 | Agent Skills (SKILL.md) | 4 skills: tutor, quiz, path, content |
-| Day 3 | DAG Orchestration | Curriculum agent composes tutor + assessment skills |
-| Day 3 | Skill Evaluation | Eval coverage checklist per skill |
-| Day 4 | 7-Pillar Security | Safety agent, sandboxing, audit logs |
-| Day 4 | Evaluation Pipeline | LLM-as-judge, intent drift detection |
-| Day 5 | Spec-Driven Development | This document + AGENTS.md |
-| Day 5 | Human-in-the-Loop | Teacher review gate for curriculum |
-| Day 5 | AI-Generated Tests | Eval dataset auto-generation |
-| Day 5 | Guardrails / Zero-Trust | Policy server, JIT downscoping |
+| Day 1 | Token budget (7K total) | `AgentContext.token_estimate()`, `AGENTS.md` table |
+| Day 2 | MCP Servers | Wikipedia, Progress DB, Content MCP (`mcp_servers/`) |
+| Day 2 | A2A Protocol | Assessment → Curriculum agent messaging (`agents/a2a.py`) |
+| Day 2 | A2UI | Generative quiz UI (`QuizCard.tsx`), `/api/quiz` |
+| Day 3 | Agent Skills (SKILL.md) | 4 skills: tutor, quiz, path, content (`skills/`) |
+| Day 3 | Progressive Disclosure | `SkillRegistry` — metadata Level 1, body Level 2 |
+| Day 3 | DAG Orchestration | `agents/dag_orchestrator.py` — Tutor→Assessment→Curriculum |
+| Day 3 | EDD + LLM-as-judge | `evals/eval_cases.json`, `/api/evaluate`, position swapping |
+| Day 4 | Search Grounding | `_call_llm_grounded()` — `google_search_retrieval` tool |
+| Day 4 | RAG | `rag/embedding_store.py` + `knowledge_base.ts`, `/api/rag` |
+| Day 4 | Multimodal | `/api/multimodal` — Gemini vision, `inlineData` image input |
+| Day 5 | Spec-Driven Development | This SPEC.md v1.0.0 + runtime `spec_validator/validator.ts` |
+| Day 5 | MLOps Observability | `lib/metrics.ts`, `/api/metrics`, `/admin` dashboard |
+| Day 5 | Production Config | `/api/health`, `vercel.json` function timeouts + headers |
+| Day 5 | Human-in-the-Loop | HITL gate: grade ≤ 6 → teacher approval flag in spec validator |
+| Day 5 | Contract Validation | `specCheck()` on every `/api/chat` + `/api/lesson` response |
+
+---
+
+## 12. Runtime Contracts (enforced by SpecValidator)
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `token_budget.response` | warn | Response > 1500 tokens |
+| `safety_gate.regex` | **block** | Response matches harmful content pattern |
+| `agent_routing.undeclared_agent` | error | Agent name not in SPEC declared set |
+| `schema.quiz_missing_field` | warn | Quiz JSON missing required field |
+| `schema.quiz_option_count` | warn | Quiz does not have exactly 4 options |
+| `hitl.curriculum_grade_gate` | warn | Curriculum change for grade ≤ 6 (teacher approval) |
+| `skill_tier.undeclared_skill` | warn | Skill name not in skill registry |
+
+---
+
+## 13. Deployment Routes
+
+| Route | Agent | Day |
+|-------|-------|-----|
+| `POST /api/chat` | Orchestrator → any agent | Day 1-5 |
+| `POST /api/quiz` | AssessmentAgent (structured) | Day 2 |
+| `POST /api/lesson` | DAG: Tutor→Assessment→Curriculum | Day 3 |
+| `POST /api/evaluate` | EDD runner + LLM-as-judge | Day 3 |
+| `POST /api/multimodal` | VisionTutorAgent | Day 4 |
+| `POST /api/rag` | Knowledge base retrieval | Day 4 |
+| `GET  /api/metrics` | Observability telemetry | Day 5 |
+| `GET  /api/health` | Production readiness check | Day 5 |

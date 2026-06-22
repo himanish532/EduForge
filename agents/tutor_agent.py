@@ -1,11 +1,14 @@
 """
 TutorAgent — Explains concepts through Socratic dialogue.
 
-Day 2 upgrade: Now uses WikipediaMCPServer via MCPClient instead of
-direct HTTP calls. Demonstrates MCP consumption pattern (Discovery → Config → Connect).
+Day 2: WikipediaMCPServer via MCPClient (MCP pattern).
+Day 4: Google Search Grounding — real-time web knowledge injected into every
+       explanation, with cited sources returned to the student.
+       Zero infra: grounding is a built-in Gemini API feature, no extra cost.
 
 Skill: subject-tutor
 MCP tools used: search_wikipedia, get_article_summary
+Grounding: google_search_retrieval (Gemini built-in)
 """
 
 from __future__ import annotations
@@ -76,7 +79,7 @@ class TutorAgent(BaseAgent):
     async def run(self, context: AgentContext, message: str) -> dict:
         self._log("tutor_start", {"topic": context.current_topic})
 
-        # Fetch Wikipedia context via MCP
+        # Fetch Wikipedia context via MCP (Day 2)
         wiki_context = ""
         if context.current_topic:
             wiki_context = await self._fetch_wiki_context(context.current_topic)
@@ -88,17 +91,30 @@ class TutorAgent(BaseAgent):
         ) + wiki_context
 
         prompt = self._build_prompt(system_prompt, context, message)
-        response = self._call_llm(prompt)
 
-        self._log("tutor_complete", {"response_len": len(response)})
+        # Day 4: use search grounding for real-time accuracy
+        grounded = self._call_llm_grounded(prompt)
+        response = grounded["text"]
+        sources = grounded["sources"]
+        search_queries = grounded["search_queries"]
+
+        self._log("tutor_complete", {
+            "response_len": len(response),
+            "grounded_sources": len(sources),
+            "search_queries": search_queries,
+        })
 
         return {
             "response": response,
+            "sources": sources,
+            "search_queries": search_queries,
             "metadata": {
                 "agent": "TutorAgent",
                 "skill": "subject-tutor",
                 "topic": context.current_topic,
                 "mcp_server": self._wiki_server.name,
                 "wikipedia_used": bool(wiki_context),
+                "grounded": True,
+                "source_count": len(sources),
             },
         }
