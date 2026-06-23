@@ -1,14 +1,5 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "next.config.js",
-      "use": "@vercel/next"
-    }
-  ],
-  "env": {
-    "GEMINI_API_KEY": "@gemini-api-key"
-  },
   "functions": {
     "app/api/chat/route.ts": { "maxDuration": 30 },
     "app/api/lesson/route.ts": { "maxDuration": 60 },
