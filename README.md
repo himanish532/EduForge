@@ -138,3 +138,4 @@ MIT — Free to use, modify, and deploy.
 ---
 
 *Built for the Kaggle AI Agents Intensive Capstone 2026 · Agents for Good Track*
+# EduForge
