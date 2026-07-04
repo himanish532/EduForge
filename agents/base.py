@@ -56,7 +56,7 @@ class BaseAgent:
     Wraps Gemini API calls with audit logging, error handling, and token budget enforcement.
     """
 
-    MODEL = "gemini-2.0-flash"
+    MODEL = "gemini-2.5-flash"
     TOKEN_BUDGET = 7000  # total context budget per AGENTS.md
     MAX_RESPONSE_TOKENS = 1500
 
@@ -121,7 +121,7 @@ class BaseAgent:
         try:
             grounded_model = genai.GenerativeModel(
                 self.MODEL,
-                tools=[{"google_search_retrieval": {}}],
+                tools=[{"google_search": {}}],
             )
             config = genai.types.GenerationConfig(
                 max_output_tokens=self.MAX_RESPONSE_TOKENS,
