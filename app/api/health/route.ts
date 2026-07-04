@@ -19,7 +19,7 @@ import { NextResponse } from "next/server";
 import { knowledgeBase } from "../../../rag/knowledge_base";
 
 const SPEC_VERSION = "1.0.0";
-const MODEL = "gemini-2.0-flash";
+const MODEL = "gemini-2.5-flash";
 const REQUIRED_SKILLS = ["subject-tutor", "quiz-generator", "learning-path", "content-fetch"];
 const REQUIRED_AGENTS = ["TutorAgent", "AssessmentAgent", "CurriculumAgent", "ContentAgent", "SafetyAgent"];
 
