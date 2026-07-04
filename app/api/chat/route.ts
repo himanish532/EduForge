@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
     const requestBody = useGrounding
       ? {
           contents: [{ parts: [{ text: fullPrompt }] }],
-          tools: [{ googleSearchRetrieval: {} }],
+          tools: [{ googleSearch: {} }],
           generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
         }
       : {
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
         };
 
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

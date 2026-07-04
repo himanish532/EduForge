@@ -15,7 +15,7 @@
       "source": "/api/(.*)",
       "headers": [
         { "key": "X-EduForge-Spec-Version", "value": "1.0.0" },
-        { "key": "X-EduForge-Model", "value": "gemini-2.0-flash" }
+        { "key": "X-EduForge-Model", "value": "gemini-2.5-flash" }
       ]
     }
   ]

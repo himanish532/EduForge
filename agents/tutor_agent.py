@@ -8,7 +8,7 @@ Day 4: Google Search Grounding — real-time web knowledge injected into every
 
 Skill: subject-tutor
 MCP tools used: search_wikipedia, get_article_summary
-Grounding: google_search_retrieval (Gemini built-in)
+Grounding: google_search (Gemini built-in)
 """
 
 from __future__ import annotations

@@ -104,7 +104,7 @@ export function getMetricsSummary(windowMinutes = 60): MetricsSummary {
     hitl_rate: n > 0 ? window.filter((m) => m.hitl_required).length / n : 0,
     recent: window.slice(-10).reverse(),
     spec_version: "1.0.0",
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
   };
 }
 
