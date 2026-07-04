@@ -140,7 +140,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   };
 
   const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -193,7 +193,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     agent: "VisionTutorAgent",
     safe,
     metadata: {
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       multimodal: true,
       grade_level,
       subject,
